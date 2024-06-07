@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phaser Game</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <script src="lib/phaser.min.js"></script>
+    <script src="lib/synaptic.js"></script>
+</head>
+<body>
+    <div id="phaser-example"></div>
+    <script>
+        class Example extends Phaser.Scene {
+            constructor() {
+                super({ key: 'example' });
+                this.player;
+                this.cursors;
+            }
+            var menu;
+            var statusIzq,statusDer,statusArr,statusAba, statusQuieto;
+            var despBallx,despBally;
+            var nnNetwork, nnEntrenamiento, nnSalida, datosEntrenamiento = [];
+            var modoAuto = false, eCompleto = false;
+
+            preload() {
+                this.load.image('wizball', 'assets/sprites/wizball.png');
+                this.load.image('menu', 'assets/game/menu.png');
+            }
+
+            create() {
+                this.player = this.add.rectangle(400, 300, 64, 64, 0xffffff);
+
+                this.physics.add.existing(this.player, false);
+
+                this.cursors = this.input.keyboard.createCursorKeys();
+
+                this.player.body.setCollideWorldBounds(true);
+
+
+                const ball1 = this.physics.add.image(100, 240, 'wizball');
+                
+
+                ball1.setCircle(46);
+                ball1.setCollideWorldBounds(true);
+                ball1.setBounce(1);
+                ball1.setVelocity(150);
+
+                // Red neuronal
+                nnNetwork = new synaptic.Architect.Perceptron(2, 2, 2, 5);
+                nnEntrenamiento = new synaptic.Trainer(nnNetwork);
+            }
+
+            // Entrenamiento de la red neuronal
+            function enRedNeural() {
+                nnEntrenamiento.train(datosEntrenamiento, { rate: 0.003, iterations: 10000, shuffle: true });
+            }
+
+            function datosDeEntrenamiento(param_entrada) {
+                nnSalida = nnNetwork.activate(param_entrada);
+                var aire = Math.round(nnSalida[0] * 100);
+                var piso = Math.round(nnSalida[1] * 100);
+                return nnSalida[0] >= nnSalida[1];
+            }
+
+            function pausa() {
+                this.paused = true;
+                menu = this.add.sprite(w / 2, h / 2, 'menu');
+                menu.anchor.setTo(0.5, 0.5);
+                this.player.body.velocity.x = 0;
+                this.player.body.velocity.y = 0;
+                this.player.position.x = 50;
+            }
+
+            function mPausa(event) {
+                if (this.paused) {
+                    var menu_x1 = w / 2 - 135, menu_x2 = w / 2 + 135,
+                        menu_y1 = h / 2 - 90, menu_y2 = h / 2 + 90;
+            
+                    var mouse_x = event.x,
+                        mouse_y = event.y;
+            
+                    if (mouse_x > menu_x1 && mouse_x < menu_x2 && mouse_y > menu_y1 && mouse_y < menu_y2) {
+                        if (mouse_x >= menu_x1 && mouse_x <= menu_x2 && mouse_y >= menu_y1 && mouse_y <= menu_y1 + 90) {
+                            eCompleto = false;
+                            datosEntrenamiento = [];
+                            modoAuto = false;
+                        } else if (mouse_x >= menu_x1 && mouse_x <= menu_x2 && mouse_y >= menu_y1 + 90 && mouse_y <= menu_y2) {
+                            if (!eCompleto) {
+                                enRedNeural();
+                                eCompleto = true;
+                            }
+                            modoAuto = true;
+                        }
+            
+                        menu.destroy();
+                        juego.paused = false;
+                    }
+                }
+            }
+
+
+            update() {
+                statusQuieto = 1;
+                statusArr = 0;
+                statusDer = 0;
+                statusIzq = 0;
+                statusAba = 0;
+
+                this.physics.arcade.collide(wizball, player, colisionH, null, this);
+
+                this.player.body.setVelocity(0);
+
+                if (modoAuto == false && this.cursors.left.isDown) {
+                    statusQuieto = 0;
+                    statusIzq = 1;
+                    this.player.body.setVelocityX(-300);
+                } else if (modoAuto == false && this.cursors.right.isDown) {
+                    statusQuieto = 0;
+                    statusDer = 1;
+                    this.player.body.setVelocityX(300);
+                }
+
+                if (modoAuto == false && this.cursors.up.isDown) {
+                    statusQuieto = 0;
+                    statusArr = 1;
+                    this.player.body.setVelocityY(-300);
+                } else if (modoAuto == false && this.cursors.down.isDown) {
+                    statusQuieto = 0;
+                    statusAba = 1;
+                    this.player.body.setVelocityY(300);
+                }
+
+                despBallx = Math.floor(player.position.x - ball1.position.x);
+                despBally = Math.floor(player.position.y - ball1.position.y);
+
+                if (modoAuto == true) {
+                    if (datosDeEntrenamiento([despBallx, despBalay])) {
+                        saltar();
+                    }
+                }
+
+                if (modoAuto == false && bala.position.x > 0 && bala1.position.x > 0 && bala2.position.x > 0) {
+                    datosEntrenamiento.push({
+                        'input': [despBallx, despBally],
+                        'output': [statusIzq,statusDer,statusArr,statusAba, statusQuieto]
+                    });
+                    console.log("Desplazamiento en X: " + despBall + " Desplazamiento en Y:  " + despBally + " Izquierda: " + statusIzq + " Derecha: " + statusDer + " Arriba: " + statusArr + " Abajo: " + statusAba + " Quieto: " + statusQuieto);
+                }
+            }
+
+            function colisionH() {
+                pausa();
+            }
+        }
+
+        const config = {
+            type: Phaser.AUTO,
+            parent: 'phaser-example',
+            backgroundColor: '#0072bc',
+            width: 800,
+            height: 600,
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    debug: true
+                    
+                }
+            },
+            scene: Example
+        };
+
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html>
